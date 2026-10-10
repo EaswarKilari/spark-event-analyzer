@@ -1,0 +1,6 @@
+# Build artifacts and local cruft — keep the ACR build context small and clean.
+bin/
+obj/
+Properties/launchSettings.json
+*.user
+.vs/

@@ -1,0 +1,17 @@
+# Build output
+bin/
+obj/
+
+# Local, untracked configuration (real endpoints / secrets)
+appsettings.local.json
+**/appsettings.local.json
+
+# CodeIndexer local index cache
+.codeindex/
+
+# IDE / OS
+.vs/
+.idea/
+*.user
+.DS_Store
+Thumbs.db

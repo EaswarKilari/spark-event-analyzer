@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Spark Event Analyzer</title>
+  <style>
+    :root {
+      --bg: #0f1720; --panel: #17212b; --panel2: #1e2a36; --line: #2b3a48;
+      --text: #e6edf3; --muted: #93a1b0; --accent: #3b82f6; --accent2: #2563eb;
+      --ok: #22c55e; --warn: #f59e0b; --err: #ef4444;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font: 14px/1.5 -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg); color: var(--text);
+    }
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 22px; border-bottom: 1px solid var(--line); background: var(--panel);
+    }
+    header h1 { font-size: 16px; margin: 0; font-weight: 600; }
+    .wrap { max-width: 980px; margin: 22px auto; padding: 0 16px; display: grid; gap: 18px; }
+    .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; }
+    .card h2 { margin: 0 0 12px; font-size: 14px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    label { display: block; font-size: 12px; color: var(--muted); margin: 0 0 4px; }
+    input, textarea {
+      width: 100%; background: var(--panel2); border: 1px solid var(--line); color: var(--text);
+      border-radius: 8px; padding: 9px 11px; font: inherit;
+    }
+    textarea { min-height: 64px; resize: vertical; }
+    .field { flex: 1 1 200px; }
+    button {
+      background: var(--accent); color: #fff; border: 0; border-radius: 8px;
+      padding: 9px 16px; font: inherit; font-weight: 600; cursor: pointer;
+    }
+    button:hover { background: var(--accent2); }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    button.ghost { background: transparent; border: 1px solid var(--line); color: var(--text); }
+    .pill { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel2); }
+    .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
+    .dot.ok { background: var(--ok); } .dot.err { background: var(--err); } .dot.warn { background: var(--warn); }
+    .muted { color: var(--muted); }
+    .code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+    .tags { display: flex; flex-wrap: wrap; gap: 6px; }
+    .tag { font-size: 12px; padding: 3px 9px; border-radius: 6px; background: var(--panel2); border: 1px solid var(--line); color: var(--text); }
+    pre {
+      background: var(--panel2); border: 1px solid var(--line); border-radius: 8px;
+      padding: 14px; white-space: pre-wrap; word-break: break-word; margin: 0; max-height: 460px; overflow: auto;
+    }
+    .device {
+      background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 14px; margin-top: 12px;
+    }
+    .device .code-big { font-size: 22px; font-weight: 700; letter-spacing: .12em; }
+    .spinner { width: 14px; height: 14px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; display: inline-block; animation: spin .8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .hidden { display: none; }
+    small.hint { color: var(--muted); display:block; margin-top:8px; }
+    select { width:100%; background: var(--panel2); border:1px solid var(--line); color:var(--text); border-radius:8px; padding:9px 11px; font:inherit; }
+    .tabs { display:flex; gap:6px; }
+    .tab { background:transparent; border:1px solid var(--line); color:var(--muted); padding:8px 18px; border-radius:8px 8px 0 0; font-weight:600; cursor:pointer; }
+    .tab.active { background:var(--panel); color:var(--text); border-bottom-color:var(--panel); }
+    .panel { border-radius:0 10px 10px 10px; }
+    .chat { display:flex; flex-direction:column; gap:10px; max-height:440px; overflow:auto; padding:4px; }
+    .msg { display:flex; }
+    .msg.user { justify-content:flex-end; }
+    .bubble { max-width:80%; padding:10px 13px; border-radius:12px; white-space:pre-wrap; word-break:break-word; }
+    .msg.user .bubble { background:var(--accent2); color:#fff; border-bottom-right-radius:4px; }
+    .msg.agent .bubble { background:var(--panel2); border:1px solid var(--line); border-bottom-left-radius:4px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>⚡ Spark Event Analyzer</h1>
+    <span class="pill"><span class="dot ok"></span>Managed identity · Foundry</span>
+  </header>
+
+  <div class="wrap">
+    <!-- Spark target -->
+    <div class="card">
+      <h2>Spark target</h2>
+      <div class="row">
+        <div class="field" style="flex:0 0 220px;">
+          <label>Platform</label>
+          <select id="platform">
+            <option value="HDInsight">HDInsight</option>
+            <option value="Synapse">Synapse</option>
+            <option value="Generic">Generic</option>
+          </select>
+        </div>
+      </div>
+      <div id="fields" class="row" style="margin-top:10px;"></div>
+      <small class="hint" id="targetHint"></small>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab active" data-tab="analyze">Analyze</button>
+      <button class="tab" data-tab="interact">Interact</button>
+      <button class="tab" data-tab="chat">Chat</button>
+      <button class="tab" data-tab="codesearch">Code Search</button>
+    </div>
+
+    <!-- Analyze panel -->
+    <div class="card panel" id="panel-analyze">
+      <h2>Analyze a Spark run</h2>
+      <div>
+        <label>Question (optional)</label>
+        <textarea id="question" placeholder="e.g. Why did this run fail? Summarize stages and flag perf issues."></textarea>
+      </div>
+      <div class="row" style="margin-top:12px;">
+        <button id="analyzeBtn">Analyze</button>
+        <span id="analyzeState" class="muted"></span>
+      </div>
+      <div style="margin-top:14px;">
+        <label>Result</label>
+        <pre id="result">—</pre>
+      </div>
+
+      <hr style="border:none;border-top:1px solid var(--line);margin:18px 0;" />
+      <h2>Analyze the codebase</h2>
+      <small class="hint">Ask about the indexed source. The assistant searches the code index (search_code) and returns an analysis with cited files — no Spark target needed.</small>
+      <div style="margin-top:12px;">
+        <label>Code question</label>
+        <textarea id="codeQuestion" placeholder="e.g. How does the app submit Spark jobs? What are the key classes?"></textarea>
+      </div>
+      <div class="row" style="margin-top:12px;">
+        <button id="codeAnalyzeBtn">Analyze code</button>
+        <span id="codeAnalyzeState" class="muted"></span>
+      </div>
+      <div style="margin-top:14px;">
+        <label>Analysis</label>
+        <pre id="codeResult">—</pre>
+      </div>
+    </div>
+
+    <!-- Interact panel -->
+    <div class="card panel hidden" id="panel-interact">
+      <h2>Interact</h2>
+      <div id="chat" class="chat">
+        <div class="msg agent"><div class="bubble">Set a Spark target above, then ask me anything about the run — failures, stages, executors, skew, spill, or perf.</div></div>
+      </div>
+      <div class="row" style="margin-top:12px; align-items:flex-end;">
+        <div class="field">
+          <label>Your message</label>
+          <textarea id="chatInput" placeholder="e.g. Which stage took the longest and why? (Enter to send, Shift+Enter for newline)"></textarea>
+        </div>
+        <button id="sendBtn">Send</button>
+      </div>
+      <div class="row" style="margin-top:8px;">
+        <button id="clearChat" class="ghost">Clear</button>
+        <span id="chatState" class="muted"></span>
+      </div>
+    </div>
+
+    <!-- Chat panel (plain LLM, no app data) -->
+    <div class="card panel hidden" id="panel-chat">
+      <h2>Chat</h2>
+      <div id="llmChat" class="chat">
+        <div class="msg agent"><div class="bubble">Hi! I'm a general assistant and I can search the indexed codebase — ask me anything.</div></div>
+      </div>
+      <div class="row" style="margin-top:12px; align-items:flex-end;">
+        <div class="field">
+          <label>Your message</label>
+          <textarea id="llmInput" placeholder="Ask me anything… (Enter to send, Shift+Enter for newline)"></textarea>
+        </div>
+        <button id="llmSendBtn">Send</button>
+      </div>
+      <div class="row" style="margin-top:8px;">
+        <button id="llmClear" class="ghost">Clear</button>
+        <span id="llmState" class="muted"></span>
+      </div>
+    </div>
+
+    <!-- Code Search panel (direct index query, no LLM) -->
+    <div class="card panel hidden" id="panel-codesearch">
+      <h2>Code Search</h2>
+      <small class="hint">Semantic + keyword search over the indexed source (Azure AI Search). No LLM — a direct index query, the same retrieval the agent's search_code tool uses.</small>
+      <div class="row" style="margin-top:12px; align-items:flex-end;">
+        <div class="field" style="flex:1 1 auto;">
+          <label>Query</label>
+          <textarea id="csQuery" placeholder="e.g. how does the scheduler dispatch flow analytics jobs (Enter to search, Shift+Enter for newline)"></textarea>
+        </div>
+      </div>
+      <div class="row" style="margin-top:10px;">
+        <div class="field" style="flex:0 0 120px;">
+          <label>Results (k)</label>
+          <input id="csK" type="number" min="1" max="25" value="8" />
+        </div>
+        <div class="field" style="flex:0 0 180px;">
+          <label>Language</label>
+          <select id="csLang">
+            <option value="">All</option>
+            <option value="csharp">csharp</option>
+            <option value="scala">scala</option>
+            <option value="powershell">powershell</option>
+            <option value="markdown">markdown</option>
+          </select>
+        </div>
+      </div>
+      <div class="row" style="margin-top:12px;">
+        <button id="csBtn">Search</button>
+        <span id="csState" class="muted"></span>
+      </div>
+      <div style="margin-top:14px;">
+        <label>Results</label>
+        <div id="csResults" class="chat" style="max-height:460px;">—</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+
+    async function postJson(url, payload) {
+      const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const text = await r.text();
+      let body; try { body = text ? JSON.parse(text) : null; } catch { body = text; }
+      if (!r.ok) throw new Error(typeof body === "string" ? body : (body?.detail || body?.error || r.statusText));
+      return body;
+    }
+
+    // Field schema per platform. `key` maps directly to the /api/analyze request property.
+    const SCHEMAS = {
+      HDInsight: [
+        { key: "cluster", label: "Cluster FQDN *", ph: "my-cluster.azurehdinsight.net", req: true },
+        { key: "appId", label: "Application id *", ph: "application_1700000000000_0001", req: true },
+        { key: "attemptId", label: "Attempt id (optional)", ph: "1" },
+      ],
+      Synapse: [
+        { key: "workspace", label: "Workspace *", ph: "my-synapse-ws", req: true },
+        { key: "sparkPool", label: "Spark pool *", ph: "sparkpool01", req: true },
+        { key: "livyId", label: "Livy id *", ph: "42", req: true },
+        { key: "appId", label: "Application id *", ph: "application_1700000000000_0001", req: true },
+        { key: "attemptId", label: "Attempt id (optional)", ph: "1" },
+      ],
+      Generic: [
+        { key: "appId", label: "Application id *", ph: "application_1700000000000_0001", req: true },
+        { key: "attemptId", label: "Attempt id (optional)", ph: "1" },
+      ],
+    };
+    const HINTS = {
+      HDInsight: "Reads from https://{cluster}/sparkhistory. Provide the cluster FQDN and the YARN application id.",
+      Synapse: "Reads from the Synapse workspace Spark History. Provide workspace, pool, Livy id and application id.",
+      Generic: "Reads from the configured default Spark History Server. Provide the application id.",
+    };
+
+    const currentPlatform = () => $("platform").value;
+
+    function renderFields() {
+      const p = currentPlatform();
+      const box = $("fields");
+      box.innerHTML = "";
+      for (const f of SCHEMAS[p]) {
+        const wrap = document.createElement("div");
+        wrap.className = "field";
+        wrap.innerHTML = `<label>${f.label}</label><input data-key="${f.key}" placeholder="${f.ph}" />`;
+        box.appendChild(wrap);
+      }
+      $("targetHint").textContent = HINTS[p];
+    }
+
+    // Gathers platform + field values into an /api/analyze payload. Throws if a required field is blank.
+    function collectTarget() {
+      const p = currentPlatform();
+      const payload = { platform: p };
+      for (const f of SCHEMAS[p]) {
+        const el = $("fields").querySelector(`[data-key="${f.key}"]`);
+        const v = (el?.value || "").trim();
+        if (f.req && !v) throw new Error(f.label.replace(" *", "") + " is required");
+        if (v) payload[f.key] = v;
+      }
+      return payload;
+    }
+
+    async function runAnalyze(question) {
+      const payload = collectTarget();
+      if (question) payload.question = question;
+      const res = await postJson("/api/analyze", payload);
+      return res.analysis || JSON.stringify(res, null, 2);
+    }
+
+    // ---- Analyze tab ----
+    async function analyze() {
+      $("analyzeBtn").disabled = true;
+      $("analyzeState").innerHTML = '<span class="spinner"></span> analyzing…';
+      $("result").textContent = "—";
+      try {
+        const out = await runAnalyze($("question").value.trim() || null);
+        $("result").textContent = out;
+        $("analyzeState").textContent = "done";
+      } catch (e) {
+        $("result").textContent = "Error: " + e.message;
+        $("analyzeState").textContent = "";
+      } finally {
+        $("analyzeBtn").disabled = false;
+      }
+    }
+
+    // ---- Interact tab ----
+    function addMsg(containerId, role, text) {
+      const box = $(containerId);
+      const wrap = document.createElement("div");
+      wrap.className = "msg " + role;
+      const b = document.createElement("div");
+      b.className = "bubble";
+      b.textContent = text;
+      wrap.appendChild(b);
+      box.appendChild(wrap);
+      box.scrollTop = box.scrollHeight;
+      return b;
+    }
+
+    async function send() {
+      const input = $("chatInput");
+      const msg = input.value.trim();
+      if (!msg) return;
+      addMsg("chat", "user", msg);
+      input.value = "";
+      $("sendBtn").disabled = true;
+      const bubble = addMsg("chat", "agent", "…");
+      $("chatState").innerHTML = '<span class="spinner"></span> thinking…';
+      try {
+        bubble.textContent = await runAnalyze(msg);
+      } catch (e) {
+        bubble.textContent = "Error: " + e.message;
+      } finally {
+        $("chatState").textContent = "";
+        $("sendBtn").disabled = false;
+        input.focus();
+        $("chat").scrollTop = $("chat").scrollHeight;
+      }
+    }
+
+    // ---- Chat tab (plain LLM, no app data) ----
+    const llmHistory = [];
+
+    async function sendLlm() {
+      const input = $("llmInput");
+      const msg = input.value.trim();
+      if (!msg) return;
+      addMsg("llmChat", "user", msg);
+      llmHistory.push({ role: "user", content: msg });
+      input.value = "";
+      $("llmSendBtn").disabled = true;
+      const bubble = addMsg("llmChat", "agent", "…");
+      $("llmState").innerHTML = '<span class="spinner"></span> thinking…';
+      try {
+        const res = await postJson("/api/chat", { messages: llmHistory });
+        const reply = res.reply || JSON.stringify(res, null, 2);
+        bubble.textContent = reply;
+        llmHistory.push({ role: "assistant", content: reply });
+      } catch (e) {
+        bubble.textContent = "Error: " + e.message;
+        llmHistory.pop(); // drop the user turn that failed so history stays clean
+      } finally {
+        $("llmState").textContent = "";
+        $("llmSendBtn").disabled = false;
+        input.focus();
+        $("llmChat").scrollTop = $("llmChat").scrollHeight;
+      }
+    }
+
+    // ---- Analyze tab: codebase analysis (LLM grounded via search_code) ----
+    async function analyzeCode() {
+      const q = $("codeQuestion").value.trim();
+      if (!q) return;
+      $("codeAnalyzeBtn").disabled = true;
+      $("codeAnalyzeState").innerHTML = '<span class="spinner"></span> analyzing…';
+      $("codeResult").textContent = "—";
+      try {
+        const res = await postJson("/api/analyze-code", { query: q });
+        $("codeResult").textContent = res.analysis || JSON.stringify(res, null, 2);
+        $("codeAnalyzeState").textContent = "done";
+      } catch (e) {
+        $("codeResult").textContent = "Error: " + e.message;
+        $("codeAnalyzeState").textContent = "";
+      } finally {
+        $("codeAnalyzeBtn").disabled = false;
+      }
+    }
+
+    // ---- Code Search tab (direct index query, no LLM) ----
+    async function doCodeSearch() {
+      const q = $("csQuery").value.trim();
+      if (!q) return;
+      const k = parseInt($("csK").value, 10) || 8;
+      const lang = $("csLang").value;
+      $("csBtn").disabled = true;
+      $("csState").innerHTML = '<span class="spinner"></span> searching…';
+      $("csResults").innerHTML = "";
+      try {
+        const params = new URLSearchParams({ q, k });
+        if (lang) params.set("language", lang);
+        const r = await fetch("/api/search-code?" + params.toString());
+        const hits = await r.json();
+        if (!r.ok) throw new Error(hits?.detail || hits?.error || r.statusText);
+        if (!Array.isArray(hits) || hits.length === 0) {
+          $("csResults").textContent = "No results.";
+        } else {
+          for (const h of hits) {
+            const wrap = document.createElement("div");
+            wrap.className = "msg agent";
+            const b = document.createElement("div");
+            b.className = "bubble";
+            const loc = document.createElement("div");
+            loc.style.fontWeight = "600";
+            loc.textContent = h.filePath;
+            const meta = document.createElement("div");
+            meta.className = "muted";
+            meta.style.marginTop = "2px";
+            meta.textContent = `${h.symbol || ""} · L${h.startLine}-${h.endLine} · ${h.language} · score ${h.score}`;
+            b.appendChild(loc);
+            b.appendChild(meta);
+            wrap.appendChild(b);
+            $("csResults").appendChild(wrap);
+          }
+        }
+        $("csState").textContent = "done";
+      } catch (e) {
+        $("csResults").textContent = "Error: " + e.message;
+        $("csState").textContent = "";
+      } finally {
+        $("csBtn").disabled = false;
+      }
+    }
+
+    // ---- Tabs ----
+    function switchTab(name) {
+      document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.dataset.tab === name));
+      $("panel-analyze").classList.toggle("hidden", name !== "analyze");
+      $("panel-interact").classList.toggle("hidden", name !== "interact");
+      $("panel-chat").classList.toggle("hidden", name !== "chat");
+      $("panel-codesearch").classList.toggle("hidden", name !== "codesearch");
+    }
+
+    document.querySelectorAll(".tab").forEach(t => t.onclick = () => switchTab(t.dataset.tab));
+    $("platform").onchange = renderFields;
+    $("analyzeBtn").onclick = analyze;
+    $("codeAnalyzeBtn").onclick = analyzeCode;
+    $("sendBtn").onclick = send;
+    $("clearChat").onclick = () => { $("chat").innerHTML = ""; addMsg("chat", "agent", "Cleared. Ask me about the current Spark target."); };
+    $("chatInput").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } });
+    $("llmSendBtn").onclick = sendLlm;
+    $("llmClear").onclick = () => { $("llmChat").innerHTML = ""; llmHistory.length = 0; addMsg("llmChat", "agent", "Cleared. Ask me anything."); };
+    $("llmInput").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendLlm(); } });
+    $("csBtn").onclick = doCodeSearch;
+    $("csQuery").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); doCodeSearch(); } });
+    renderFields();
+  </script>
+</body>
+</html>

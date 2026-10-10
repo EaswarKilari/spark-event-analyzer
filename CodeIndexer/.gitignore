@@ -1,0 +1,4 @@
+bin/
+obj/
+.codeindex/
+appsettings.local.json

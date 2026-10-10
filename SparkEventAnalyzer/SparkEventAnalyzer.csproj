@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>SparkEventAnalyzer</RootNamespace>
+    <AssemblyName>SparkEventAnalyzer</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Entra ID auth for the Spark History Server REST call (Synapse) and future Foundry/ADO/storage access. -->
+    <PackageReference Include="Azure.AI.Projects" Version="3.0.0-beta.2" />
+    <!-- Key Vault: HDInsight cluster credentials (a JSON map of clusterFqdn -> "user:password"). -->
+    <PackageReference Include="Azure.Security.KeyVault.Secrets" Version="4.7.0" />
+    <!-- Microsoft Agent Framework: agent + tool calling. Azure OpenAI chat client integration.
+         Swappable to Foundry Agent Service (Microsoft.Agents.AI.Foundry) later. -->
+    <PackageReference Include="Microsoft.Agents.AI" Version="1.21.0" />
+    <PackageReference Include="Microsoft.Agents.AI.Foundry" Version="1.21.0-preview.260911.1" />
+    <PackageReference Include="Microsoft.Agents.AI.OpenAI" Version="1.21.0" />
+    <PackageReference Include="Azure.AI.OpenAI" Version="2.1.0" />
+    <!-- Azure AI Search: hybrid vector + semantic queries over the CodeIndexer-built code index. -->
+    <PackageReference Include="Azure.Search.Documents" Version="11.6.0" />
+    <!-- Delegated (on-behalf-of-user) sign-in for the remote Azure DevOps MCP server.
+         Device-code flow using a public client id acquires a token for
+         https://mcp.dev.azure.com/.default; MCP tools are then reachable per-user. -->
+    <PackageReference Include="Microsoft.Identity.Client" Version="4.88.0" />
+    <PackageReference Include="ModelContextProtocol" Version="0.3.0-preview.3" />
+  </ItemGroup>
+
+</Project>
